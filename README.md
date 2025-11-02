@@ -2,7 +2,7 @@
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/f7a0ed7c-f26b-4b5f-809b-3cb371a31a8f" />
 
 - **Nama:** Refi Ikhsanti 
-- **NIM:** Refi Ikhsanti 
+- **NIM:** 123140126
 - **Kelas:** RA
 - **Link Vercel:** https://uts-pemweb-123140126.vercel.app/
 
