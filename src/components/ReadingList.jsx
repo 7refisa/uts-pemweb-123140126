@@ -1,57 +1,50 @@
+// src/components/ReadingList.jsx
 import React from "react";
+import { Search, Library, Eye, Trash2 } from "lucide-react";
 
 const ReadingList = ({
-  books,
+  readingList,
   onRemove,
   onDetails,
-  onFilter,
-  allSubjects,
-  currentFilter,
+  titleFilter,
+  onFilterChange,
 }) => {
+  const filteredBooks = readingList.filter((book) => {
+    if (!titleFilter) {
+      return true;
+    }
+    return book.title.toLowerCase().includes(titleFilter.toLowerCase());
+  });
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg border border-pink-100">
       <h2 className="text-xl font-semibold text-pink-700 mb-4">
         Reading List Anda
       </h2>
 
-      {/* Filter berdasarkan subject */}
-      <div className="mb-4">
+      <div className="mb-6">
         <label
-          htmlFor="subjectFilter"
+          htmlFor="titleFilter"
           className="block text-sm font-medium text-pink-600 mb-1"
         >
-          Filter berdasarkan Subjek
+          Filter berdasarkan Judul
         </label>
-        <select
-          id="subjectFilter"
-          value={currentFilter}
-          onChange={(e) => onFilter(e.target.value)}
-          disabled={allSubjects.length === 0}
-          className="w-full md:w-1/3 p-2 rounded-md border border-pink-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-400 disabled:bg-gray-50"
-        >
-          <option value="">Semua Subjek</option>
-          {allSubjects.map((subject) => (
-            <option key={subject} value={subject}>
-              {subject}
-            </option>
-          ))}
-        </select>
-        {allSubjects.length === 0 && books.length > 0 && (
-          <p className="text-xs text-pink-400 mt-1">
-            Data subjek tidak tersedia di buku-buku ini.
-          </p>
-        )}
+        <div className="relative w-full md:w-1/3">
+          <input
+            type="text"
+            id="titleFilter"
+            value={titleFilter}
+            onChange={(e) => onFilterChange(e.target.value)}
+            placeholder="Cari judul di reading list..."
+            className="w-full p-2 pl-8 rounded-md border border-pink-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-400"
+          />
+          <Search className="w-4 h-4 text-pink-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
       </div>
 
-      {books.length === 0 ? (
-        <p className="text-pink-500 text-center py-4">
-          {currentFilter
-            ? "Tidak ada buku yang cocok dengan filter ini."
-            : "Reading list Anda masih kosong."}
-        </p>
-      ) : (
+      {filteredBooks.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {books.map((book) => (
+          {filteredBooks.map((book) => (
             <div
               key={book.key}
               className="bg-pink-50 border border-pink-100 rounded-lg shadow-sm p-4 flex flex-col justify-between"
@@ -76,19 +69,33 @@ const ReadingList = ({
               <div className="flex gap-2 mt-4">
                 <button
                   onClick={() => onDetails(book)}
-                  className="flex-1 text-sm bg-white border border-pink-300 text-pink-600 py-1 px-2 rounded-md hover:bg-pink-100 transition-colors"
+                  title="Lihat Detail (dan muat subjek)"
+                  className="flex-1 flex justify-center items-center gap-1 text-sm bg-white border border-pink-300 text-pink-600 py-1 px-2 rounded-md hover:bg-pink-100 transition-colors"
                 >
-                  Details
+                  <Eye className="w-4 h-4" /> Details
                 </button>
                 <button
                   onClick={() => onRemove(book.key)}
-                  className="flex-1 text-sm bg-pink-600 text-white py-1 px-2 rounded-md hover:bg-pink-700 transition-colors"
+                  title="Hapus dari List"
+                  className="flex-1 flex justify-center items-center gap-1 text-sm bg-pink-600 text-white py-1 px-2 rounded-md hover:bg-pink-700 transition-colors"
                 >
-                  Remove
+                  <Trash2 className="w-4 h-4" /> Remove
                 </button>
               </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div className="text-center py-10 px-4">
+          <Library className="w-12 h-12 text-pink-300 mx-auto" />
+          <h3 className="mt-2 text-lg font-medium text-pink-700">
+            {titleFilter ? "Tidak Ada Buku" : "Reading List Anda Masih Kosong"}
+          </h3>
+          <p className="mt-1 text-sm text-pink-500">
+            {titleFilter
+              ? "Tidak ada buku yang cocok dengan filter judul ini."
+              : "Cari buku dan tambahkan ke sini untuk dibaca nanti."}
+          </p>
         </div>
       )}
     </div>
