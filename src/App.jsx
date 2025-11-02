@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { Search, BookOpen, Library } from "lucide-react";
 import { APP_CONFIG } from "./config";
@@ -7,209 +8,205 @@ import ReadingList from "./components/ReadingList";
 import BookDetailModal from "./components/BookDetailModal";
 
 export default function App() {
-  const [view, setView] = useState("search"); // 'search' or 'list'
+  const [view, setView] = useState("search");
   const [books, setBooks] = useState([]);
-  const [readingList, setReadingList] = useState([]);
+
+  const [readingList, setReadingList] = useState(() => {
+    try {
+      const items = localStorage.getItem(APP_CONFIG.localStorageKey);
+      return items ? JSON.parse(items) : [];
+    } catch (error) {
+      console.error("Gagal memuat reading list dari localStorage:", error);
+      return [];
+    }
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedBookKey, setSelectedBookKey] = useState(null);
-  const [subjectFilter, setSubjectFilter] = useState("");
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [titleFilter, setTitleFilter] = useState("");
 
-  // Memuat reading list dari localStorage
-  useEffect(() => {
-    try {
-      const storedList = localStorage.getItem(APP_CONFIG.localStorageKey);
-      if (storedList) {
-        setReadingList(JSON.parse(storedList));
-      }
-    } catch (err) {
-      console.error("Gagal memuat reading list:", err);
-    }
-  }, []); // Dependency array kosong, berjalan sekali saat mount
-
-  // Menyimpan reading list ke localStorage
   useEffect(() => {
     try {
       localStorage.setItem(
         APP_CONFIG.localStorageKey,
         JSON.stringify(readingList)
       );
-    } catch (err) {
-      console.error("Gagal menyimpan reading list:", err);
+    } catch (error) {
+      console.error("Gagal menyimpan reading list ke localStorage:", error);
     }
-  }, [readingList]); // Berjalan setiap kali state `readingList` berubah
+  }, [readingList]);
 
   const handleSearch = useCallback(async (searchParams) => {
-    const { searchTerm, searchType, limit, publishYear, hasCover } =
-      searchParams;
-
     setIsLoading(true);
     setError(null);
     setBooks([]);
-
-    let query = `${searchType}:"${searchTerm}"`;
-    if (publishYear) {
-      query += ` AND first_publish_year:[* TO ${publishYear}]`;
-    }
-
-    const url = `${APP_CONFIG.apiBaseUrl}/search.json?q=${query}&limit=${limit}`;
-
     try {
-      const response = await fetch(url);
-      if (!response.ok)
-        throw new Error("Gagal mengambil data. Coba lagi nanti.");
-
-      const data = await response.json();
-
-      let transformedBooks = data.docs.map((book) => ({
-        key: book.key,
-        title: book.title,
-        authors: book.author_name
-          ? book.author_name.join(", ")
-          : "Unknown Author",
-        year: book.first_publish_year || "N/A",
-        coverUrl: book.cover_i
-          ? `${APP_CONFIG.coverBaseUrl}/${book.cover_i}-M.jpg`
-          : `https://placehold.co/56x80/fbeff2/ec4899?text=N/A`,
-        hasCover: !!book.cover_i,
-        subjects: book.subject_facet || null, // Simpan subjects untuk filter
-      }));
-
-      // Filter client-side untuk checkbox 'hasCover'
-      if (hasCover) {
-        transformedBooks = transformedBooks.filter((book) => book.hasCover);
-      }
-
-      setBooks(transformedBooks);
-      if (transformedBooks.length === 0) {
-        setError("Tidak ada hasil yang cocok dengan kriteria Anda.");
+      const results = await APP_CONFIG.searchBooks(searchParams);
+      setBooks(results);
+      if (results.length === 0) {
+        setError("Buku tidak ditemukan. Coba kata kunci lain.");
       }
     } catch (err) {
-      setError(err.message);
+      console.error("Error saat mencari buku:", err);
+      setError(err.message || "Gagal mengambil data. Coba lagi nanti.");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Menambah buku ke reading list
-  const addToReadingList = (bookToAdd) => {
-    if (!readingList.find((book) => book.key === bookToAdd.key)) {
-      setReadingList((prevList) => [...prevList, bookToAdd]);
-    }
-  };
+  const handleAddToList = useCallback(
+    (book) => {
+      if (!readingList.find((item) => item.key === book.key)) {
+        const bookToAdd = {
+          ...book,
+          subjects: book.subjects || [],
+        };
+        setReadingList((prevList) => [...prevList, bookToAdd]);
+      } else {
+        console.warn("Buku sudah ada di reading list.");
+      }
+    },
+    [readingList]
+  );
 
-  //Menghapus buku dari reading list
-  const removeFromReadingList = (bookKey) => {
+  const handleRemoveFromList = useCallback((bookKey) => {
     setReadingList((prevList) =>
       prevList.filter((book) => book.key !== bookKey)
     );
-  };
+  }, []);
 
-  const showBookDetails = (book) => {
-    setSelectedBookKey(book.key);
-  };
+  const handleShowDetails = useCallback(
+    async (book) => {
+      setIsLoading(true);
+      setError(null);
 
-  const closeBookDetails = () => {
-    setSelectedBookKey(null);
-  };
+      const existingBookInList = readingList.find(
+        (item) => item.key === book.key
+      );
+      const hasDetails = existingBookInList && existingBookInList.description;
 
-  // Set untuk cek cepat buku di reading list
-  const readingListKeys = new Set(readingList.map((book) => book.key));
+      setSelectedBook(existingBookInList || book);
 
-  // Ambil semua subjek unik dari reading list untuk filter
-  const allSubjects = [
-    ...new Set(
-      readingList.flatMap((book) => book.subjects || []).filter(Boolean)
-    ),
-  ].sort();
+      if (hasDetails) {
+        setIsLoading(false);
+        return;
+      }
 
-  // Logika filter untuk reading list
-  const filteredReadingList = readingList.filter(
-    (book) =>
-      !subjectFilter || (book.subjects && book.subjects.includes(subjectFilter))
+      try {
+        const details = await APP_CONFIG.getBookDetails(book.key);
+
+        const updatedBook = {
+          ...book,
+          description: details.description,
+          subjects: details.subjects,
+        };
+
+        setSelectedBook(updatedBook);
+
+        setReadingList((prevList) =>
+          prevList.map((item) => (item.key === book.key ? updatedBook : item))
+        );
+      } catch (err) {
+        console.error("Error saat mengambil detail buku:", err);
+        setError(
+          err.message || "Gagal mengambil detail buku. Coba lagi nanti."
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [readingList]
   );
 
+  const handleCloseDetails = useCallback(() => {
+    setSelectedBook(null);
+    setError(null);
+  }, []);
+
   return (
-    <div className="min-h-screen text-gray-800">
-      {/* Header */}
-      <header className="bg-white shadow-md border-b border-pink-100 sticky top-0 z-30">
-        <nav className="container mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center">
-          <div className="flex items-center gap-2 text-2xl font-bold text-pink-600 mb-2 sm:mb-0">
-            <BookOpen className="w-8 h-8" />
-            <span>Perpustakaan Digital</span>
+    <div className="min-h-screen bg-pink-50 font-sans text-gray-800">
+      <header className="bg-white shadow-sm border-b border-pink-200 sticky top-0 z-10">
+        <nav className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-8 h-8 text-pink-600" />
+            <h1 className="text-2xl font-bold text-pink-700 hidden sm:block">
+              Perpustakaan Digital
+            </h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setView("search")}
-              className={`flex items-center gap-2 py-2 px-4 rounded-md font-medium transition-colors ${
+              className={`flex items-center gap-2 py-2 px-4 rounded-lg transition-colors duration-200 ${
                 view === "search"
-                  ? "bg-pink-600 text-white shadow-sm"
-                  : "bg-white text-pink-600 hover:bg-pink-50"
+                  ? "bg-pink-600 text-white shadow-md"
+                  : "text-pink-600 hover:bg-pink-100"
               }`}
             >
               <Search className="w-5 h-5" />
-              Cari Buku
+              <span className="font-medium">Cari Buku</span>
             </button>
             <button
               onClick={() => setView("list")}
-              className={`flex items-center gap-2 py-2 px-4 rounded-md font-medium transition-colors ${
+              className={`flex items-center gap-2 py-2 px-4 rounded-lg transition-colors duration-200 relative ${
                 view === "list"
-                  ? "bg-pink-600 text-white shadow-sm"
-                  : "bg-white text-pink-600 hover:bg-pink-50"
+                  ? "bg-pink-600 text-white shadow-md"
+                  : "text-pink-600 hover:bg-pink-100"
               }`}
             >
               <Library className="w-5 h-5" />
-              Reading List
-              <span className="bg-pink-700 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                {readingList.length}
-              </span>
+              <span className="font-medium">Reading List</span>
+              {readingList.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {readingList.length}
+                </span>
+              )}
             </button>
           </div>
         </nav>
       </header>
 
-      {/* Main Content */}
       <main className="container mx-auto p-4 md:p-8">
-        {/* Conditional Rendering */}
         {view === "search" && (
-          <section>
+          <div className="space-y-6">
             <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+            {error && !isLoading && (
+              <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded-lg text-center">
+                {error}
+              </div>
+            )}
             <BookResults
               books={books}
+              onAdd={handleAddToList}
+              onDetails={handleShowDetails}
+              readingList={readingList}
               isLoading={isLoading}
-              error={error}
-              onAdd={addToReadingList}
-              onDetails={showBookDetails}
-              readingListKeys={readingListKeys}
             />
-          </section>
+          </div>
         )}
 
         {view === "list" && (
-          <section>
-            <ReadingList
-              books={filteredReadingList}
-              onRemove={removeFromReadingList}
-              onDetails={showBookDetails}
-              onFilter={setSubjectFilter}
-              allSubjects={allSubjects}
-              currentFilter={subjectFilter}
-            />
-          </section>
+          <ReadingList
+            readingList={readingList}
+            onRemove={handleRemoveFromList}
+            onDetails={handleShowDetails}
+            titleFilter={titleFilter}
+            onFilterChange={setTitleFilter}
+          />
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="text-center py-6 mt-8 border-t border-pink-100">
-        <p className="text-sm text-pink-500">
-          Dibuat dengan React & <span className="text-pink-400">♥</span>. Data
-          dari Open Library API.
-        </p>
+      <footer className="text-center py-6 text-pink-500 text-sm">
+        Dibuat dengan React & ♥️ Data dari Open Library API.
       </footer>
 
-      {/* Modal (Conditional Rendering) */}
-      {selectedBookKey && (
-        <BookDetailModal bookKey={selectedBookKey} onClose={closeBookDetails} />
+      {selectedBook && (
+        <BookDetailModal
+          book={selectedBook}
+          onClose={handleCloseDetails}
+          isLoading={isLoading}
+          error={error}
+        />
       )}
     </div>
   );
