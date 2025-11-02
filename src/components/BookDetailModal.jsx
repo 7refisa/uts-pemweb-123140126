@@ -1,93 +1,18 @@
-import React, { useState, useEffect, useCallback } from "react";
+// src/components/BookDetailModal.jsx
+import React from "react";
 import { X, Loader2 } from "lucide-react";
-import { APP_CONFIG } from "../config";
 
-const BookDetailModal = ({ bookKey, onClose }) => {
-  const [details, setDetails] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // useEffect untuk fetch data detail
-  useEffect(() => {
-    if (!bookKey) return;
-
-    const fetchBookDetails = async (key) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const response = await fetch(`${APP_CONFIG.apiBaseUrl}${key}.json`);
-        if (!response.ok) throw new Error("Gagal mengambil detail buku.");
-
-        const data = await response.json();
-
-        // Data Transformation
-        let desc = "Tidak ada deskripsi.";
-        if (typeof data.description === "string") {
-          desc = data.description;
-        } else if (
-          data.description &&
-          typeof data.description.value === "string"
-        ) {
-          desc = data.description.value;
-        }
-
-        // Ambil detail author
-        let authorNames = ["Unknown Author"];
-        if (data.authors && data.authors.length > 0) {
-          try {
-            const authorKey = data.authors[0].author.key;
-            const authorRes = await fetch(
-              `${APP_CONFIG.apiBaseUrl}${authorKey}.json`
-            );
-            if (authorRes.ok) {
-              const authorData = await authorRes.json();
-              authorNames = [authorData.name];
-            }
-          } catch (authError) {
-            console.warn("Gagal fetch author details:", authError);
-          }
-        }
-
-        setDetails({
-          title: data.title,
-          authors: authorNames.join(", "),
-          year: data.first_publish_date,
-          coverUrl: data.covers
-            ? `${APP_CONFIG.coverBaseUrl}/${data.covers[0]}-M.jpg`
-            : `https://placehold.co/128x192/fbeff2/ec4899?text=N/A`,
-          description: desc
-            .split("\n")
-            .filter((line) => !line.startsWith("---") && line.trim() !== "")[0],
-          subjects: data.subjects
-            ? data.subjects.slice(0, 10)
-            : ["Tidak ada subjek"], // Ambil maks 10 subjek
-        });
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchBookDetails(bookKey);
-  }, [bookKey]);
-
-  const { title, authors, year, coverUrl, description, subjects } =
-    details || {};
-
+const BookDetailModal = ({ book, onClose, isLoading, error }) => {
   return (
-    // Modal Overlay
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex justify-center items-center p-4"
       onClick={onClose}
+      className="fixed inset-0 bg-black bg-opacity-50 z-20 flex justify-center items-center p-4"
     >
-      {/* Modal Content */}
       <div
-        className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()} // Mencegah modal tertutup saat klik di dalam
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col"
       >
-        {/* Modal Header */}
-        <div className="flex justify-between items-center p-5 border-b border-pink-100 sticky top-0 bg-white z-10">
+        <div className="flex justify-between items-center p-4 border-b border-pink-100">
           <h2 className="text-xl font-semibold text-pink-700">Detail Buku</h2>
           <button
             onClick={onClose}
@@ -97,60 +22,70 @@ const BookDetailModal = ({ bookKey, onClose }) => {
           </button>
         </div>
 
-        {/* Modal Body */}
-        {isLoading && (
-          <div className="h-64 flex justify-center items-center">
-            <Loader2 className="w-10 h-10 text-pink-500 animate-spin" />
-          </div>
-        )}
-        {error && (
-          <div className="p-5 text-red-600 bg-red-100 m-5 rounded-lg">
-            {error}
-          </div>
-        )}
-        {details && !isLoading && (
-          <div className="p-6">
-            <div className="flex flex-col md:flex-row gap-6">
-              <img
-                src={coverUrl}
-                alt={`Cover ${title}`}
-                className="w-32 h-48 object-cover rounded shadow-md flex-shrink-0 mx-auto md:mx-0"
-                onError={(e) =>
-                  (e.currentTarget.src =
-                    "https://placehold.co/128x192/fbeff2/ec4899?text=N/A")
-                }
-              />
-              <div className="flex-1">
-                <h3 className="text-2xl font-bold text-pink-800">{title}</h3>
-                <p className="text-lg text-pink-600">{authors}</p>
-                <p className="text-md text-pink-500 mb-4">{year}</p>
+        <div className="p-6 overflow-y-auto">
+          {isLoading && !book.description && (
+            <div className="flex justify-center items-center h-48">
+              <Loader2 className="w-8 h-8 animate-spin text-pink-600" />
+            </div>
+          )}
+          {error && (
+            <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded-lg text-center">
+              {error}
+            </div>
+          )}
 
-                {/* Description */}
-                <h4 className="font-semibold text-pink-700 mt-4 mb-1">
+          {(!isLoading || book.description) && (
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="flex-shrink-0 w-full md:w-1/3 text-center">
+                <img
+                  src={book.coverUrl}
+                  alt={`Cover ${book.title}`}
+                  className="h-56 w-auto object-cover rounded shadow-md mx-auto mb-4"
+                  onError={(e) =>
+                    (e.currentTarget.src =
+                      "https://placehold.co/150x224/fbeff2/ec4899?text=N/A")
+                  }
+                />
+                <h3 className="font-bold text-lg text-pink-800">
+                  {book.title}
+                </h3>
+                <p className="text-md text-pink-600">{book.authors}</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Tahun Terbit: {book.year}
+                </p>
+              </div>
+              <div className="flex-grow md:w-2/3">
+                <h4 className="font-semibold text-pink-700 border-b border-pink-100 pb-1 mb-2">
                   Deskripsi
                 </h4>
-                <p className="text-sm text-gray-700 leading-relaxed max-h-40 overflow-y-auto pr-2">
-                  {description}
+                <p className="text-sm text-gray-700 prose max-w-none">
+                  {book.description ||
+                    (isLoading ? "Memuat..." : "Deskripsi tidak tersedia.")}
                 </p>
 
-                {/* Subject */}
-                <h4 className="font-semibold text-pink-700 mt-4 mb-1">
+                <h4 className="font-semibold text-pink-700 border-b border-pink-100 pb-1 mb-2 mt-6">
                   Subjek
                 </h4>
-                <div className="flex flex-wrap gap-2">
-                  {subjects.map((subject, index) => (
-                    <span
-                      key={index}
-                      className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-full"
-                    >
-                      {subject}
-                    </span>
-                  ))}
-                </div>
+                {book.subjects && book.subjects.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {book.subjects.map((subject, index) => (
+                      <span
+                        key={index}
+                        className="bg-pink-100 text-pink-700 text-xs font-medium px-3 py-1 rounded-full"
+                      >
+                        {subject}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    {isLoading ? "Memuat..." : "Subjek tidak tersedia."}
+                  </p>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
