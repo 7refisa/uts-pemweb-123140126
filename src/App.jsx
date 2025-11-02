@@ -197,7 +197,8 @@ export default function App() {
       </main>
 
       <footer className="text-center py-6 text-pink-500 text-sm">
-        Dibuat dengan React & ♥️ Data dari Open Library API.
+        Dibuat dengan React dan Love. Data dari Open Library API. Refi Ikhsanti
+        123140126.
       </footer>
 
       {selectedBook && (
